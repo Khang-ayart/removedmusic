@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Removed Music - MR Removed</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#121212">
+</head>
+<body>
+    <div class="container">
+        <h1>🎵 Removed Music</h1>
+        <p class="subtitle">Tách Vocal & Music ngay trên trình duyệt</p>
+
+        <label for="fileInput" class="custom-file-upload">
+            📁 Chọn file nhạc
+        </label>
+        <input type="file" id="fileInput" accept="audio/*,video/*">
+        <p id="fileName">Chưa chọn file nào</p>
+
+        <button id="processBtn" disabled>⚡ Bắt đầu tách nhạc</button>
+
+        <div id="status" class="status"></div>
+
+        <div class="controls" id="controls" style="display: none;">
+            <div class="slider-group">
+                <label>🎤 Vocal: <span id="vocalVal">100%</span></label>
+                <input type="range" id="vocalSlider" min="0" max="100" value="100">
+            </div>
+            <div class="slider-group">
+                <label>🎸 Music: <span id="musicVal">100%</span></label>
+                <input type="range" id="musicSlider" min="0" max="100" value="100">
+            </div>
+            <button id="playBtn">▶️ Play / Pause</button>
+        </div>
+    </div>
+
+    <!-- Thư viện FFmpeg.wasm -->
+    <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
