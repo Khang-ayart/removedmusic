@@ -1,0 +1,52 @@
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #121212;
+    color: #ffffff;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    margin: 0;
+}
+.container {
+    background: #1e1e1e;
+    padding: 30px;
+    border-radius: 16px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    text-align: center;
+    max-width: 400px;
+    width: 90%;
+}
+h1 { color: #bb86fc; margin-bottom: 5px; }
+.subtitle { color: #aaaaaa; margin-bottom: 25px; font-size: 14px; }
+
+input[type="file"] { display: none; }
+.custom-file-upload {
+    display: inline-block;
+    padding: 12px 24px;
+    cursor: pointer;
+    background: #333333;
+    border-radius: 8px;
+    margin-bottom: 10px;
+    transition: 0.3s;
+}
+.custom-file-upload:hover { background: #444444; }
+
+button {
+    background: #bb86fc;
+    color: #000;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    margin-top: 15px;
+    width: 100%;
+}
+button:disabled { background: #555; cursor: not-allowed; }
+
+.slider-group { margin: 20px 0; text-align: left; }
+input[type=range] { width: 100%; margin-top: 5px; }
+
+.status { margin-top: 15px; color: #03dac6; font-size: 14px; min-height: 20px;}
