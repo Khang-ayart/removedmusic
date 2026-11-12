@@ -132,6 +132,18 @@ downloadBtn.addEventListener('click', () => {
     a.click();
     URL.revokeObjectURL(url);
 });
+// Tải file Music (Instrumental) về máy
+const downloadMusicBtn = document.getElementById('downloadMusicBtn');
+downloadMusicBtn.addEventListener('click', () => {
+    if (!musicBuffer) return;
+    const wavBlob = audioBufferToWav(musicBuffer);
+    const url = URL.createObjectURL(wavBlob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'MR_Removed_Music_Instrumental.wav';
+    a.click();
+    URL.revokeObjectURL(url);
+});
 
 // Hàm convert AudioBuffer → WAV file
 function audioBufferToWav(buffer) {
