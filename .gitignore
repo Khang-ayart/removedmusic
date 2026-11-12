@@ -1,0 +1,38 @@
+# File hệ thống
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# File tạm của trình soạn thảo
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# File môi trường (nếu sau này có dùng API key)
+.env
+.env.local
+
+# Node modules (nếu sau này cài thêm thư viện bằng npm)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# File build/output (nếu dùng bundler)
+dist/
+build/
+*.log
+
+# File nhạc/video test (đừng upload file nhạc lên GitHub!)
+*.mp3
+*.wav
+*.mp4
+*.flac
+*.aac
+test_audio/
+samples/
+
+# Cache của trình duyệt
+.cache/
