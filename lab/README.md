@@ -15,19 +15,26 @@ Mở tại `…/lab/index.html`.
 | WASM đa luồng trên GitHub Pages | Service worker thêm `COOP: same-origin` + `COEP: credentialless` để bật cross-origin isolation. |
 | Giấy phép | Xem `config.js` và bảng dưới. |
 
-Model thử: `timcsy/demucs-web-onnx` (`htdemucs_embedded.onnx`, ~172 MB, STFT nhúng trong graph) qua thư viện `demucs-web` (MIT) và ONNX Runtime Web.
-Trọng số gốc là HTDemucs của Meta (MIT) nhưng repo Hugging Face trên **chưa có model card**; cần xác nhận lại giấy phép trước khi đưa vào app chính.
+## Model
+
+| Model | Dung lượng | Ghi chú |
+|---|---|---|
+| **MDX-Net Voc FT** (mặc định) | ~67 MB | Chuyên tách vocal (UVR, MIT, cần ghi công UVR/Anjok07/Kimberley Jensen). Nguồn: `masszhou/mdxnet` trên Hugging Face. STFT/iSTFT viết tay trong `mdx.js` (đã test khớp DFT thô, khôi phục SNR 110 dB). Nhạc nền = bản gốc − vocal. |
+| HTDemucs 4-stem | ~172 MB | Chất lượng cao nhưng rất nặng trên CPU điện thoại. Qua `demucs-web` (MIT). Repo HF `timcsy/demucs-web-onnx` chưa có model card → cần xác nhận giấy phép trước khi dùng chính thức. |
+
+Chưa có số đo tốc độ thật của MDX trên điện thoại: cần chạy bản lab và xem báo cáo.
+Chưa áp dụng `compensate` (hệ số bù ~1.03 của UVR) và chưa dùng chế độ khử nhiễu (chạy 2 lần). Có thể bổ sung nếu nghe thấy lệch mức.
 
 ## Quy trình test trên Android (Chrome)
 
 1. Mở trang `lab/`, chờ trang tự tải lại một lần (để bật isolation). Mục 1 phải thấy *Cross-origin isolated: Có*.
 2. Bấm **Kiểm tra Hugging Face** → ghi nhận kết quả.
-3. Bấm **Tải model** (nên dùng Wi-Fi) → xem tiến trình, tốc độ, thời gian.
+3. Chọn model (mặc định MDX-Net, nhẹ) rồi bấm **Tải model** (nên dùng Wi-Fi) → xem tiến trình, tốc độ, thời gian.
 4. **Đóng hẳn** Chrome/PWA rồi mở lại → phải báo "đã có trên thiết bị", không tải lại.
 5. (Tuỳ chọn) Chrome ⋮ → *Thêm vào màn hình chính*, mở từ icon, kiểm tra lại bước 4 ở chế độ app.
 6. Chọn mp3 ~3 phút:
    - Lần 1: **30 giây đầu**, tăng tốc *Tự động* (smoke test).
-   - Lần 2: **Toàn bài**, chia khối 45 s.
+   - Lần 2: **Toàn bài** (MDX tự chia chunk 5.9 s; HTDemucs chia khối 45 s).
    - Lần 3: *Chỉ CPU (WASM)* để đo trường hợp máy không có GPU.
 7. Nghe A/B (Gốc / Vocal / Nhạc nền), ghi chú vocal còn lẫn gì, có méo/“rỗng”, có tiếng lạ ở chỗ nối khối (mỗi 43.5 s).
 8. Thử lỗi: bật chế độ máy bay giữa lúc tải (phải báo lỗi rõ và không lưu file dở); chọn "Không chia" với bài dài (thử hết RAM).
