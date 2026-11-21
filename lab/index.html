@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Removed Music Lab – thử nghiệm AI tách vocal</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#121212">
+  <link rel="icon" href="icon-192.png">
+  <link rel="stylesheet" href="lab.css">
+</head>
+<body>
+<main class="wrap">
+  <h1>🧪 Removed Music Lab</h1>
+  <p class="sub">Bản thử nghiệm AI tách vocal chạy 100% trên thiết bị. <a href="../index.html">← Về app chính (không bị thay đổi)</a></p>
+
+  <div id="crashNotice" class="card warn" hidden></div>
+
+  <section class="card">
+    <h2>1. Môi trường thiết bị</h2>
+    <table id="envTable"><tbody></tbody></table>
+    <button id="btnEnv" class="ghost">Kiểm tra lại</button>
+  </section>
+
+  <section class="card">
+    <h2>2. Model AI</h2>
+    <p id="modelInfo" class="muted"></p>
+    <p id="modelState" class="state">Đang kiểm tra bộ nhớ thiết bị…</p>
+    <progress id="dlBar" value="0" max="1" hidden></progress>
+    <p id="dlText" class="muted"></p>
+    <div class="row">
+      <button id="btnDownload">⬇️ Tải model</button>
+      <button id="btnCancelDl" class="ghost" hidden>Huỷ tải</button>
+    </div>
+    <div class="row">
+      <button id="btnCheckHF" class="ghost">Kiểm tra Hugging Face (không tải)</button>
+      <button id="btnDelete" class="ghost danger">Xoá model đã lưu</button>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>3. Tách bài hát</h2>
+    <label class="file" for="fileInput">📁 Chọn file mp3 / âm thanh</label>
+    <input type="file" id="fileInput" accept="audio/*,.mp3">
+    <p id="fileName" class="muted">Chưa chọn file</p>
+
+    <div class="grid">
+      <label>Đoạn xử lý
+        <select id="selLen">
+          <option value="30">30 giây đầu (thử nhanh)</option>
+          <option value="60">60 giây đầu</option>
+          <option value="0" selected>Toàn bài</option>
+        </select>
+      </label>
+      <label>Tăng tốc
+        <select id="selBackend">
+          <option value="auto" selected>Tự động (GPU → CPU)</option>
+          <option value="webgpu">Chỉ GPU (WebGPU)</option>
+          <option value="wasm">Chỉ CPU (WASM)</option>
+        </select>
+      </label>
+      <label>Chia khối (tiết kiệm RAM)
+        <select id="selBlock">
+          <option value="45" selected>45 giây / khối</option>
+          <option value="20">20 giây / khối</option>
+          <option value="0">Không chia</option>
+        </select>
+      </label>
+      <label>Luồng CPU
+        <select id="selThreads">
+          <option value="auto" selected>Tự động</option>
+          <option value="1">1 luồng (an toàn)</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="row">
+      <button id="btnSeparate" disabled>⚡ Tách vocal</button>
+      <button id="btnCancel" class="ghost" hidden>Huỷ</button>
+    </div>
+    <progress id="sepBar" value="0" max="1" hidden></progress>
+    <p id="sepText" class="state"></p>
+  </section>
+
+  <section class="card" id="results" hidden>
+    <h2>4. Kết quả &amp; nghe so sánh (A/B)</h2>
+    <div class="seg" role="radiogroup">
+      <button data-mode="orig" class="ghost">Gốc</button>
+      <button data-mode="voc" class="on">Vocal</button>
+      <button data-mode="inst" class="ghost">Nhạc nền</button>
+    </div>
+    <div class="row">
+      <button id="btnPlay">▶️ Phát</button>
+    </div>
+    <input type="range" id="seek" min="0" max="1000" value="0">
+    <label class="inline"><input type="checkbox" id="chkLevel" checked> Cân bằng âm lượng khi chuyển A/B</label>
+    <div class="row">
+      <button id="btnDlVoc" class="ghost">💾 Tải vocal (.wav)</button>
+      <button id="btnDlInst" class="ghost">💾 Tải nhạc nền (.wav)</button>
+    </div>
+    <h3>Số đo tự động</h3>
+    <table id="metrics"><tbody></tbody></table>
+    <p class="muted">Chất lượng thật sự phải nghe bằng tai: chuyển Gốc / Vocal / Nhạc nền và để ý tiếng còn lẫn, tiếng bị “rỗng”, méo ở chỗ nối khối.</p>
+  </section>
+
+  <section class="card">
+    <h2>5. Báo cáo kết quả</h2>
+    <p class="muted">Sao chép và gửi lại để đánh giá.</p>
+    <textarea id="report" rows="8" readonly></textarea>
+    <div class="row">
+      <button id="btnCopy">📋 Sao chép</button>
+      <button id="btnShare" class="ghost">Chia sẻ</button>
+    </div>
+  </section>
+
+  <details class="card">
+    <summary>Nhật ký chi tiết</summary>
+    <pre id="log"></pre>
+  </details>
+</main>
+<script type="module" src="lab.js"></script>
+</body>
+</html>
