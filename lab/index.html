@@ -14,12 +14,13 @@
   <h1>🧪 Removed Music Lab</h1>
   <p class="sub">Bản thử nghiệm AI tách vocal chạy 100% trên thiết bị. <a href="../index.html">← Về app chính (không bị thay đổi)</a></p>
 
+  <div id="guardNotice" class="card warn" hidden></div>
   <div id="crashNotice" class="card warn" hidden></div>
 
   <section class="card">
     <h2>1. Môi trường thiết bị</h2>
     <table id="envTable"><tbody></tbody></table>
-    <button id="btnEnv" class="ghost">Kiểm tra lại</button>
+    <div class="row"><button id="btnEnv" class="ghost">Kiểm tra lại</button><button id="btnGpu" class="ghost">Kiểm tra GPU</button></div>
   </section>
 
   <section class="card">
@@ -54,9 +55,9 @@
       </label>
       <label>Tăng tốc
         <select id="selBackend">
-          <option value="auto" selected>Tự động (GPU → CPU)</option>
+          <option value="wasm" selected>Chỉ CPU (WASM) – an toàn</option>
+          <option value="auto">Tự động (GPU → CPU)</option>
           <option value="webgpu">Chỉ GPU (WebGPU)</option>
-          <option value="wasm">Chỉ CPU (WASM)</option>
         </select>
       </label>
       <label>Chia khối (tiết kiệm RAM)
