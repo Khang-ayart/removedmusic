@@ -7,11 +7,17 @@ import { storageInfo } from './modelstore.js';
 const $ = (id) => document.getElementById(id);
 const tick = () => new Promise((r) => setTimeout(r, 0));
 const SR = CONFIG.sampleRate;
+const _qs = new URLSearchParams(location.search);
+const _stored = (() => { try { return localStorage.getItem('mrr_model'); } catch { return null; } })();
+// Ưu tiên: ?model= trên URL > lựa chọn đã lưu > mặc định
+let modelKey = CONFIG.models[_qs.get('model')] ? _qs.get('model')
+  : CONFIG.models[_stored] ? _stored : CONFIG.defaultModel;
+const M = () => CONFIG.models[modelKey];
 
 const report = {
   app: 'removedmusic-lab',
   startedAt: new Date().toISOString(),
-  model: { id: CONFIG.model.id, url: CONFIG.model.url },
+  model: null,
   env: {}, hf: null, download: null, reuse: null, separate: null, quality: null,
   mem: [], errors: [], crashedPrevious: null, events: [],
 };
@@ -174,7 +180,7 @@ async function checkEnv(withGpu = false) {
   const s = await storageInfo();
   if (s.quota != null) {
     const free = s.quota - s.usage;
-    add('Bộ nhớ lưu trữ trống', `${formatBytes(free)} (đã dùng ${formatBytes(s.usage)} / ${formatBytes(s.quota)})`, free < CONFIG.model.approxBytes * 1.3 ? 'bad' : 'ok');
+    add('Bộ nhớ lưu trữ trống', `${formatBytes(free)} (đã dùng ${formatBytes(s.usage)} / ${formatBytes(s.quota)})`, free < M().approxBytes * 1.3 ? 'bad' : 'ok');
   }
   add('Lưu trữ bền (persist)', s.persisted == null ? 'không biết' : s.persisted ? 'Có (hệ thống không tự xoá model)' : 'Chưa (sẽ xin sau khi tải)', s.persisted ? 'ok' : '');
   setRows(rows);
@@ -196,12 +202,13 @@ function startWorker() {
     fail('worker', 'load', 'Worker lỗi: ' + (e.message || 'không nạp được worker.js'));
     endBusy();
   };
-  worker.postMessage({ type: 'status' });
+  worker.postMessage({ type: 'status', model: modelKey });
   setTimeout(() => leave('worker'), 800);
 }
 
 function endBusy() {
   leave('gpu');
+  $('selModel').disabled = false;
   state.busy = null;
   $('btnDownload').disabled = false;
   $('btnCancelDl').hidden = true;
@@ -232,7 +239,7 @@ function onWorker(ev) {
   switch (m.type) {
     case 'ready': break;
     case 'log': log(m.m); break;
-    case 'status': onStatus(m.status); break;
+    case 'status': onStatus(m.status, m.model); break;
     case 'dl-progress': {
       const { loaded, total, estimated } = m;
       $('dlBar').hidden = false;
@@ -290,27 +297,47 @@ function onWorker(ev) {
   }
 }
 
-function onStatus(s) {
+function onStatus(s, key) {
+  if (key && key !== modelKey) return;
   modelCached = !!s.cached;
   const st = $('modelState');
   if (s.cached) {
     st.textContent = `✅ Model đã có trên thiết bị (${formatBytes(s.bytes)}, tải ${new Date(s.ts).toLocaleString()}). Sẽ dùng lại, không tải nữa.`;
     $('btnDownload').textContent = '⬇️ Tải lại model';
-    report.reuse = { cached: true, bytes: s.bytes, savedAt: new Date(s.ts).toISOString(), checkedAt: new Date().toISOString(), displayMode: matchMedia('(display-mode: standalone)').matches ? 'standalone' : 'browser' };
+    report.reuse = { model: modelKey, cached: true, bytes: s.bytes, savedAt: new Date(s.ts).toISOString(), checkedAt: new Date().toISOString(), displayMode: matchMedia('(display-mode: standalone)').matches ? 'standalone' : 'browser' };
   } else {
-    st.textContent = `⬇️ Chưa có model. Lần đầu cần tải khoảng ${formatBytes(CONFIG.model.approxBytes)} (nên dùng Wi-Fi). Sau đó chỉ tải một lần.`;
-    $('btnDownload').textContent = `⬇️ Tải model (~${formatBytes(CONFIG.model.approxBytes)})`;
-    report.reuse = { cached: false, checkedAt: new Date().toISOString() };
+    st.textContent = `⬇️ Chưa có model. Lần đầu cần tải khoảng ${formatBytes(M().approxBytes)} (nên dùng Wi-Fi). Sau đó chỉ tải một lần.`;
+    $('btnDownload').textContent = `⬇️ Tải model (~${formatBytes(M().approxBytes)})`;
+    report.reuse = { model: modelKey, cached: false, checkedAt: new Date().toISOString() };
   }
   updateSeparateEnabled();
   renderReport();
 }
 
 // ---------- model panel ----------
-$('modelInfo').textContent = `${CONFIG.model.name} · nguồn: Hugging Face · ${CONFIG.model.license}`;
+function renderModelInfo() {
+  report.model = { key: modelKey, id: M().id, url: M().url, kind: M().kind };
+  $('modelInfo').textContent = `${M().name} · nguồn: Hugging Face · ${M().license}`;
+  $('selBlock').disabled = M().kind === 'mdx'; // MDX tự chia chunk 5.9 s
+}
+for (const k of Object.keys(CONFIG.models)) {
+  const o = document.createElement('option'); o.value = k;
+  o.textContent = `${CONFIG.models[k].name} · ~${Math.round(CONFIG.models[k].approxBytes / 1e6)} MB`;
+  $('selModel').append(o);
+}
+$('selModel').value = modelKey;
+$('selModel').onchange = () => {
+  if (state.busy) { $('selModel').value = modelKey; return; }
+  modelKey = $('selModel').value;
+  try { localStorage.setItem('mrr_model', modelKey); } catch { /* */ }
+  modelCached = false; $('modelState').textContent = 'Đang kiểm tra bộ nhớ thiết bị…'; $('dlText').textContent = '';
+  updateSeparateEnabled(); renderModelInfo(); renderReport();
+  if (worker) worker.postMessage({ type: 'status', model: modelKey });
+};
+renderModelInfo();
 
 $('btnDownload').onclick = () => {
-  const mb = Math.round(CONFIG.model.approxBytes / 1e6);
+  const mb = Math.round(M().approxBytes / 1e6);
   if (!confirm(`Sẽ tải model khoảng ${mb} MB từ Hugging Face và lưu trên thiết bị. Chỉ tải một lần. Tiếp tục?`)) return;
   state.busy = 'download';
   state.dlStart = performance.now();
@@ -318,7 +345,8 @@ $('btnDownload').onclick = () => {
   $('btnCancelDl').hidden = false;
   $('dlBar').hidden = false; $('dlBar').value = 0;
   $('dlText').textContent = 'Đang kết nối…';
-  ensureWorker().postMessage({ type: 'download' });
+  $('selModel').disabled = true;
+  ensureWorker().postMessage({ type: 'download', model: modelKey });
 };
 $('btnCancelDl').onclick = () => {
   log('Người dùng huỷ tải.');
@@ -326,14 +354,14 @@ $('btnCancelDl').onclick = () => {
   $('dlText').textContent = 'Đã huỷ. Chưa có gì được lưu.';
 };
 $('btnDelete').onclick = () => {
-  if (confirm('Xoá model đã lưu? Lần sau sẽ phải tải lại.')) ensureWorker().postMessage({ type: 'delete' });
+  if (confirm('Xoá model đã lưu? Lần sau sẽ phải tải lại.')) ensureWorker().postMessage({ type: 'delete', model: modelKey });
 };
 $('btnCheckHF').onclick = async () => {
   const t0 = performance.now();
   $('dlText').textContent = 'Đang kiểm tra Hugging Face…';
   try {
     const ctl = new AbortController();
-    const r = await fetch(CONFIG.model.url, { headers: { Range: 'bytes=0-1023' }, signal: ctl.signal, mode: 'cors', credentials: 'omit' });
+    const r = await fetch(M().url, { headers: { Range: 'bytes=0-1023' }, signal: ctl.signal, mode: 'cors', credentials: 'omit' });
     const cr = r.headers.get('content-range');
     const total = cr ? Number(cr.split('/')[1]) : Number(r.headers.get('content-length')) || null;
     ctl.abort();
@@ -420,7 +448,7 @@ $('btnSeparate').onclick = async () => {
 
   const l = audio.l.slice(), r = audio.r.slice(); // bản gửi cho worker (giữ bản gốc để nghe A/B)
   state.sepCtx = { opts, t0: performance.now() };
-  ensureWorker().postMessage({ type: 'separate', left: l, right: r, ...opts }, [l.buffer, r.buffer]);
+  ensureWorker().postMessage({ type: 'separate', left: l, right: r, model: modelKey, ...opts }, [l.buffer, r.buffer]);
 };
 
 $('btnCancel').onclick = () => {
@@ -476,7 +504,7 @@ async function onResult(m) {
   const seg = t.segMs || [];
   report.separate = {
     file: { name: o.name, sizeBytes: o.size, fullDurationSec: +o.fullSec.toFixed(1), sourceSampleRate: o.srcSr, channels: o.channels },
-    options: o.opts, processedSec: +processedSec.toFixed(1), decodeMs: o.decodeMs,
+    model: t.model, options: o.opts, processedSec: +processedSec.toFixed(1), decodeMs: o.decodeMs,
     backendUsed: t.ep, wasmThreads: t.lib && t.lib.wasmThreads, crossOriginIsolated: t.lib && t.lib.crossOriginIsolated,
     readModelMs: t.readMs, loadModelMs: t.loadMs, separateMs: t.sepMs, totalMs: t.totalMs,
     realtimeFactor: +(processedSec / (t.sepMs / 1000)).toFixed(2),
@@ -500,6 +528,7 @@ async function onResult(m) {
   const rows = [
     ['Backend thực tế', `${t.ep === 'webgpu' ? 'GPU (WebGPU)' : 'CPU (WASM, ' + (t.lib.wasmThreads || 1) + ' luồng)'}${t.failures.length ? ' · đã fallback sau lỗi' : ''}`],
     ['Thời gian nạp model', fmtDur(t.loadMs)],
+    ['Model', M().name],
     ['Thời gian tách', `${fmtDur(t.sepMs)} cho ${processedSec.toFixed(0)} s nhạc`],
     ['Tốc độ', `${report.separate.realtimeFactor}× thời gian thực ${report.separate.realtimeFactor < 1 ? '(chậm hơn nghe nhạc)' : ''}`],
     ['Tổng thời gian', fmtDur(t.totalMs)],
@@ -611,6 +640,8 @@ $('btnGpu').onclick = () => {
   checkEnv(true);
 };
 addEventListener('beforeunload', () => { /* không xoá cờ chạy: để phát hiện crash */ });
+
+if (_qs.get('debug')) window.__lab = { get buffers() { return buffers; }, get audio() { return audio; } };
 
 // ---------- khởi động (tuần tự, từng bước có bảo vệ) ----------
 addEventListener('error', (e) => fail('page', 'error', String(e.message || e)));
