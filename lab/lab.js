@@ -52,20 +52,72 @@ function clearRun() { try { localStorage.removeItem(RUN_KEY); } catch { /* */ } 
   } catch { /* */ }
 })();
 
+// ---------- bảo vệ khởi động: tự tắt bước từng làm sập trang ----------
+const GUARD_KEY = 'mrr_guard';
+const STEP_LABEL = {
+  sw: 'đăng ký service worker / bật đa luồng', worker: 'khởi động bộ xử lý nền (worker)',
+  gpu: 'dùng GPU (WebGPU)', idle: 'sau khi trang vừa mở xong',
+};
+function readGuard() {
+  try { const g = JSON.parse(localStorage.getItem(GUARD_KEY) || '{}'); g.disabled = g.disabled || {}; return g; }
+  catch { return { disabled: {} }; }
+}
+function writeGuard(g) { try { localStorage.setItem(GUARD_KEY, JSON.stringify(g)); } catch { /* */ } }
+function enter(step) { const g = readGuard(); g.pending = step; writeGuard(g); }
+function leave(step) { const g = readGuard(); if (!step || g.pending === step) { g.pending = null; writeGuard(g); } }
+let guard = readGuard();
+if (guard.pending) {
+  const step = guard.pending === 'idle' ? 'sw' : guard.pending; // sập ngay sau khi mở trang: nghi do chế độ đa luồng
+  guard.disabled[step] = true; guard.pending = null; writeGuard(guard);
+  report.crashedPrevious = report.crashedPrevious || { guardStep: step };
+}
+// Đóng/tải lại trang bình thường sẽ phát 'pagehide'; sập thật thì không có sự kiện này.
+addEventListener('pagehide', () => leave());
+const isOff = (step) => !!readGuard().disabled[step];
+function renderGuardNotice() {
+  const off = Object.keys(readGuard().disabled).filter((k) => readGuard().disabled[k]);
+  const n = $('guardNotice');
+  if (!off.length) { n.hidden = true; return; }
+  n.hidden = false;
+  n.textContent = '';
+  const t = document.createElement('div');
+  t.textContent = '⚠️ Lần trước trình duyệt bị lỗi/sập khi: ' + off.map((k) => STEP_LABEL[k] || k).join('; ') +
+    '. Mình đã tự tắt bước này để trang vẫn mở được.';
+  const b = document.createElement('button'); b.className = 'ghost'; b.textContent = 'Thử bật lại';
+  b.onclick = () => { writeGuard({ disabled: {} }); location.reload(); };
+  n.append(t, b);
+}
+
 // ---------- service worker + cross-origin isolation ----------
 async function setupSW() {
   if (!('serviceWorker' in navigator)) { log('Trình duyệt không hỗ trợ service worker.'); return; }
+  if (isOff('sw') || new URLSearchParams(location.search).get('safe') === '1') {
+    log('Bỏ qua service worker (chế độ an toàn).');
+    let had = 0;
+    try { for (const r of await navigator.serviceWorker.getRegistrations()) { had++; await r.unregister(); } } catch { /* */ }
+    // Trang đang mở có thể vẫn mang header cách ly do SW cũ thêm vào; worker sẽ không nạp được nếu không tải lại.
+    if ((had || self.crossOriginIsolated) && !sessionStorage.getItem('mrr_unreg_reload')) {
+      sessionStorage.setItem('mrr_unreg_reload', '1');
+      location.reload();
+      return 'reload';
+    }
+    return;
+  }
+  enter('sw');
   try {
     await navigator.serviceWorker.register('./sw.js', { scope: './' });
     await navigator.serviceWorker.ready;
     if (!self.crossOriginIsolated && !sessionStorage.getItem('mrr_coi_reload')) {
       sessionStorage.setItem('mrr_coi_reload', '1');
+      leave('sw');
       if (navigator.serviceWorker.controller) location.reload();
       else navigator.serviceWorker.addEventListener('controllerchange', () => location.reload(), { once: true });
+      return;
     }
   } catch (e) {
     log('Đăng ký service worker lỗi: ' + e.message);
   }
+  leave('sw');
 }
 
 // ---------- kiểm tra môi trường ----------
@@ -82,7 +134,7 @@ function setRows(rows) {
   }
 }
 
-async function checkEnv() {
+async function checkEnv(withGpu = false) {
   const rows = [];
   const env = {};
   const add = (k, v, st) => { rows.push([k, v, st]); env[k] = v; };
@@ -94,23 +146,29 @@ async function checkEnv() {
   add('Service worker', navigator.serviceWorker && navigator.serviceWorker.controller ? 'Đang hoạt động' : 'Chưa kiểm soát trang', navigator.serviceWorker && navigator.serviceWorker.controller ? 'ok' : 'warn');
   add('Mạng', `${navigator.onLine ? 'online' : 'offline'}${navigator.connection ? ' · ' + (navigator.connection.effectiveType || '') + (navigator.connection.saveData ? ' · tiết kiệm dữ liệu BẬT' : '') : ''}`, navigator.onLine ? 'ok' : 'bad');
 
-  // WebGPU
-  if (!navigator.gpu) {
-    add('WebGPU', 'Không có → sẽ chạy bằng CPU (WASM)', 'warn');
+  // WebGPU: KHÔNG dò khi mở trang (trên một số máy Android việc này làm sập trình duyệt).
+  if (withGpu) {
+    if (!navigator.gpu) {
+      add('WebGPU', 'Không có → sẽ chạy bằng CPU (WASM)', 'warn');
+    } else {
+      enter('gpu');
+      try {
+        const ad = await navigator.gpu.requestAdapter();
+        if (!ad) add('WebGPU', 'API có nhưng không có adapter → CPU', 'warn');
+        else {
+          let info = ad.info;
+          if (!info && ad.requestAdapterInfo) { try { info = await ad.requestAdapterInfo(); } catch { /* */ } }
+          const desc = info ? [info.vendor, info.architecture, info.device, info.description].filter(Boolean).join(' / ') : 'adapter OK';
+          add('WebGPU', desc || 'adapter OK', 'ok');
+          add('GPU maxBufferSize', formatBytes(ad.limits.maxBufferSize), ad.limits.maxBufferSize < 256 * 1048576 ? 'warn' : '');
+          add('GPU maxStorageBinding', formatBytes(ad.limits.maxStorageBufferBindingSize), '');
+          add('GPU shader-f16', ad.features.has('shader-f16') ? 'có' : 'không', '');
+        }
+      } catch (e) { add('WebGPU', 'Lỗi: ' + e.message, 'bad'); }
+      leave('gpu');
+    }
   } else {
-    try {
-      const ad = await navigator.gpu.requestAdapter();
-      if (!ad) add('WebGPU', 'API có nhưng không có adapter → CPU', 'warn');
-      else {
-        let info = ad.info;
-        if (!info && ad.requestAdapterInfo) { try { info = await ad.requestAdapterInfo(); } catch { /* */ } }
-        const desc = info ? [info.vendor, info.architecture, info.device, info.description].filter(Boolean).join(' / ') : 'adapter OK';
-        add('WebGPU', desc || 'adapter OK', 'ok');
-        add('GPU maxBufferSize', formatBytes(ad.limits.maxBufferSize), ad.limits.maxBufferSize < 256 * 1048576 ? 'warn' : '');
-        add('GPU maxStorageBinding', formatBytes(ad.limits.maxStorageBufferBindingSize), '');
-        add('GPU shader-f16', ad.features.has('shader-f16') ? 'có' : 'không', '');
-      }
-    } catch (e) { add('WebGPU', 'Lỗi: ' + e.message, 'bad'); }
+    add('WebGPU', `${'gpu' in navigator ? 'Trình duyệt có hỗ trợ' : 'Không có'} · chưa dò (bấm "Kiểm tra GPU")`, '');
   }
 
   const s = await storageInfo();
@@ -128,8 +186,10 @@ async function checkEnv() {
 let worker = null;
 let state = { busy: null, dlStart: 0, sepStart: 0, sepCtx: null };
 
+function ensureWorker() { if (!worker) startWorker(); return worker; }
 function startWorker() {
   if (worker) worker.terminate();
+  enter('worker');
   worker = new Worker('./worker.js' + location.search, { type: 'module' });
   worker.onmessage = onWorker;
   worker.onerror = (e) => {
@@ -137,9 +197,11 @@ function startWorker() {
     endBusy();
   };
   worker.postMessage({ type: 'status' });
+  setTimeout(() => leave('worker'), 800);
 }
 
 function endBusy() {
+  leave('gpu');
   state.busy = null;
   $('btnDownload').disabled = false;
   $('btnCancelDl').hidden = true;
@@ -200,6 +262,7 @@ function onWorker(ev) {
     }
     case 'stage': {
       setRun({ status: 'running', stage: m.stage });
+      if (/\(webgpu\)/.test(m.stage)) enter('gpu'); else leave('gpu');
       $('sepText').textContent = STAGE_TEXT[m.stage] || m.stage;
       if (m.stage.startsWith('separate(')) state.sepStart = performance.now();
       if (m.heapMb != null) report.mem.push({ at: m.stage, workerJsHeapMb: m.heapMb });
@@ -255,7 +318,7 @@ $('btnDownload').onclick = () => {
   $('btnCancelDl').hidden = false;
   $('dlBar').hidden = false; $('dlBar').value = 0;
   $('dlText').textContent = 'Đang kết nối…';
-  worker.postMessage({ type: 'download' });
+  ensureWorker().postMessage({ type: 'download' });
 };
 $('btnCancelDl').onclick = () => {
   log('Người dùng huỷ tải.');
@@ -263,7 +326,7 @@ $('btnCancelDl').onclick = () => {
   $('dlText').textContent = 'Đã huỷ. Chưa có gì được lưu.';
 };
 $('btnDelete').onclick = () => {
-  if (confirm('Xoá model đã lưu? Lần sau sẽ phải tải lại.')) worker.postMessage({ type: 'delete' });
+  if (confirm('Xoá model đã lưu? Lần sau sẽ phải tải lại.')) ensureWorker().postMessage({ type: 'delete' });
 };
 $('btnCheckHF').onclick = async () => {
   const t0 = performance.now();
@@ -338,8 +401,10 @@ $('btnSeparate').onclick = async () => {
   $('sepBar').hidden = false; $('sepBar').value = 0;
   $('sepText').textContent = 'Đang giải mã file âm thanh…';
   setRun({ status: 'running', stage: 'decode' });
+  let backend = $('selBackend').value;
+  if (isOff('gpu') && backend !== 'wasm') { backend = 'wasm'; log('GPU đang bị tắt (lần trước gây lỗi) → dùng CPU.'); }
   const opts = {
-    backend: $('selBackend').value, threads: $('selThreads').value,
+    backend, threads: $('selThreads').value,
     blockSec: Number($('selBlock').value), maxSec: Number($('selLen').value),
   };
   try {
@@ -355,7 +420,7 @@ $('btnSeparate').onclick = async () => {
 
   const l = audio.l.slice(), r = audio.r.slice(); // bản gửi cho worker (giữ bản gốc để nghe A/B)
   state.sepCtx = { opts, t0: performance.now() };
-  worker.postMessage({ type: 'separate', left: l, right: r, ...opts }, [l.buffer, r.buffer]);
+  ensureWorker().postMessage({ type: 'separate', left: l, right: r, ...opts }, [l.buffer, r.buffer]);
 };
 
 $('btnCancel').onclick = () => {
@@ -540,11 +605,23 @@ $('btnShare').onclick = async () => {
   if (navigator.share) { try { await navigator.share({ title: 'Removed Music Lab report', text: $('report').value }); } catch { /* huỷ */ } }
   else $('btnCopy').click();
 };
-$('btnEnv').onclick = checkEnv;
+$('btnEnv').onclick = () => checkEnv(false);
+$('btnGpu').onclick = () => {
+  if (isOff('gpu')) { alert('Lần trước GPU làm trình duyệt lỗi. Hãy bấm "Thử bật lại" ở khung cảnh báo nếu muốn thử lại.'); return; }
+  checkEnv(true);
+};
 addEventListener('beforeunload', () => { /* không xoá cờ chạy: để phát hiện crash */ });
 
-// ---------- khởi động ----------
-setupSW();
-startWorker();
-checkEnv();
-renderReport();
+// ---------- khởi động (tuần tự, từng bước có bảo vệ) ----------
+addEventListener('error', (e) => fail('page', 'error', String(e.message || e)));
+addEventListener('unhandledrejection', (e) => fail('page', 'rejection', String((e.reason && e.reason.message) || e.reason)));
+renderGuardNotice();
+(async () => {
+  if ((await setupSW()) === 'reload') return;
+  if (isOff('worker')) { log('Worker đang bị tắt (lần trước gây lỗi).'); $('modelState').textContent = '⚠️ Bộ xử lý nền đã bị tắt vì từng làm sập trình duyệt.'; }
+  else startWorker();
+  await checkEnv(false);
+  renderReport();
+  enter('idle');
+  setTimeout(() => leave('idle'), 4000);
+})();
