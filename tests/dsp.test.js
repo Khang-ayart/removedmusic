@@ -88,4 +88,18 @@ const db = (x) => 20 * Math.log10(Math.max(x, 1e-12));
   const ratioIn = proj(rumble, 40) / proj(rumble, 1000), ratioOut = proj(cr.data, 40) / proj(cr.data, 1000);
   ok(ratioOut / ratioIn < 0.2, 'HPF: tiếng rền 40 Hz giảm > 14 dB so với 1 kHz', `(${(20 * Math.log10(ratioOut / ratioIn)).toFixed(1)} dB)`); }
 
+
+// 5. Chống synth: synth/pad kéo dài ở giữa → vocal phải sạch hơn rõ rệt, bài thường không bị hại
+{ const sr = 44100, S = synth(sr, 24), N = S.N, L = Float32Array.from(S.left), R = Float32Array.from(S.right);
+  const ch = [[330, 415, 494], [294, 370, 440], [262, 330, 392], [294, 370, 440]], ph = [0, 0, 0];
+  for (let i = 0; i < N; i++) { const t = i / sr, c = ch[Math.floor(t / 2) % 4]; let v = 0;
+    for (let k = 0; k < 3; k++) { ph[k] += 2 * Math.PI * c[k] / sr; for (let h = 1; h <= 8; h++) v += Math.sin(h * ph[k]) / h; } v *= 0.07; L[i] += v; R[i] += v; }
+  const cut = (x) => x.subarray(sr / 2, x.length - sr / 2);
+  const a = DSP.sdrDb(cut(S.vocal), cut(DSP.separateAdvanced(L, R, sr, { strength: 'canbang' }).vocal));
+  const b = DSP.sdrDb(cut(S.vocal), cut(DSP.separateAdvanced(L, R, sr, { strength: 'canbang', synth: 1.2 }).vocal));
+  ok(b > a + 2, `chống synth: SDR vocal ${a.toFixed(1)} → ${b.toFixed(1)} dB trên bài có synth ở giữa (cần > +2 dB)`);
+  const c0 = DSP.sdrDb(cut(S.vocal), cut(DSP.separateAdvanced(S.left, S.right, sr, { strength: 'canbang' }).vocal));
+  const c1 = DSP.sdrDb(cut(S.vocal), cut(DSP.separateAdvanced(S.left, S.right, sr, { strength: 'canbang', synth: 1.2 }).vocal));
+  ok(c1 > c0 - 1, `chống synth không hại bài thường (${c0.toFixed(1)} → ${c1.toFixed(1)} dB)`); }
+
 console.log(fails ? `\n${fails} FAILED` : '\nALL DSP TESTS PASSED'); process.exit(fails ? 1 : 0);

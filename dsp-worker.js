@@ -7,7 +7,7 @@ self.onmessage = function (e) {
     if (m.type === 'separate') {
       const left = m.left, right = m.mono ? m.left : m.right;
       const r = self.DSP.separateAdvanced(left, right, m.sr, {
-        strength: m.strength, detail: m.detail,
+        strength: m.strength, detail: m.detail, synth: m.synth,
         onProgress: (p) => self.postMessage({ type: 'progress', stage: 'separate', p }),
       });
       self.postMessage({ type: 'separated', vocal: r.vocal, musicL: r.musicL, musicR: r.musicR, info: r.info },

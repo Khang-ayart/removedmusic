@@ -119,6 +119,16 @@
     const tmpF = new Float32Array(K + kf + 2), winF = new Float32Array(kf);
     for (let t = 0; t < T; t++) slidingMedian(mag, t * K, 1, K, kf, Pm, t * K, 1, tmpF, winF);
 
+    // --- chống synth: âm kéo dài/ổn định (pad, synth) gần bằng trung vị dài theo thời gian; giọng hát biến thiên nên vượt trung vị
+    let Hl = null;
+    const syn = P.synth || 0;
+    if (syn > 0) {
+      const kl = Math.max(kt + 2, Math.round((0.7 * sr) / hop) | 1);
+      Hl = new Float32Array(K * T);
+      const tmpL = new Float32Array(T + kl + 2), winL = new Float32Array(kl);
+      for (let k = 0; k < K; k++) slidingMedian(mag, k, K, T, kl, Hl, k, K, tmpL, winL);
+    }
+
     // --- mặt nạ
     const mask = new Float32Array(K * T);
     const fw = new Float32Array(K);
@@ -137,7 +147,12 @@
       else { const a = Math.pow(h, beta), b = Math.pow(p, beta); mh = a / (a + b + 1e-12); }
       let mc = (sim[i] - s0) * invS; mc = mc < 0 ? 0 : mc > 1 ? 1 : mc;
       if (P.gamma !== 1) mc = Math.pow(mc, P.gamma);
-      mask[i] = mh * mc * fw[i % K];
+      let ms = 1;
+      if (Hl) { // r = mag/trung vị dài: ≈1 nếu ổn định → triệt; r ≥ 1+1/syn → giữ nguyên
+        let r = (mag[i] / (Hl[i] + 1e-9) - 1) * syn; ms = r < 0 ? 0 : r > 1 ? 1 : r;
+        ms = ms * ms * (3 - 2 * ms);
+      }
+      mask[i] = mh * mc * fw[i % K] * ms;
     }
     // làm mượt mặt nạ theo thời gian (giảm "nhiễu nhạc")
     const sm = new Float32Array(K * T);
@@ -205,7 +220,8 @@
    */
   function separateAdvanced(left, right, sr, opt) {
     opt = opt || {};
-    const P = STRENGTH[opt.strength] || STRENGTH.canbang;
+    const P = Object.assign({}, STRENGTH[opt.strength] || STRENGTH.canbang);
+    if (opt.synth) P.synth = opt.synth === true ? 1 : +opt.synth;
     const hop = opt.detail === 'fine' ? 512 : 1024;
     // kernel trung vị theo thời gian ≈ 0.19 s
     const kt = hop === 512 ? 17 : 9;

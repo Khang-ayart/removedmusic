@@ -83,7 +83,7 @@
       newWorker();
       setProgress('🎚️ Đang tách vocal… 0%', 0);
       const sep = await request(
-        { type: 'separate', left: l, right: r, mono, sr: S.sr, strength: $('strengthSelect').value, detail: 'fast' },
+        { type: 'separate', left: l, right: r, mono, sr: S.sr, strength: $('strengthSelect').value, detail: 'fast', synth: $('synthChk').checked ? 1.2 : 0 },
         mono ? [l.buffer] : [l.buffer, r.buffer],
         (p) => setProgress(`🎚️ Đang tách vocal… ${Math.round(p * 100)}%`, p));
       S.raw = sep.vocal; S.musicL = sep.musicL; S.musicR = sep.musicR; S.info = sep.info;
