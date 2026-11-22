@@ -21,6 +21,9 @@ fileInput.addEventListener('change', (e) => {
         statusDiv.innerText = "✅ Đã chọn file. Bấm 'Bắt đầu tách nhạc'!";
         processed = false;
         controlsDiv.style.display = 'none';
+        const ab = document.getElementById('abPanel');
+        if (ab) ab.style.display = 'none';
+        if (window.RMAdvanced) window.RMAdvanced.stopAB(true);
     }
 });
 
@@ -38,6 +41,18 @@ processBtn.addEventListener('click', async () => {
 
         statusDiv.innerText = "🔄 Đang decode audio...";
         const originalBuffer = await audioContext.decodeAudioData(arrayBuffer);
+
+        if (audioContext.state === 'suspended') audioContext.resume();
+
+        if (document.getElementById('modeSelect').value === 'advanced' && window.RMAdvanced) {
+            const out = await window.RMAdvanced.run(originalBuffer, audioContext);
+            vocalBuffer = out.vocalBuffer;
+            musicBuffer = out.musicBuffer;
+            processed = true;
+            controlsDiv.style.display = 'block';
+            processBtn.disabled = false;
+            return;
+        }
 
         statusDiv.innerText = "🎚️ Đang tách Vocal & Music...";
         const length = originalBuffer.length;
@@ -130,7 +145,7 @@ downloadBtn.addEventListener('click', () => {
     a.href = url;
     a.download = 'MR_Removed_Vocal.wav';
     a.click();
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
 });
 // Tải file Music (Instrumental) về máy
 const downloadMusicBtn = document.getElementById('downloadMusicBtn');
@@ -142,7 +157,7 @@ downloadMusicBtn.addEventListener('click', () => {
     a.href = url;
     a.download = 'MR_Removed_Music_Instrumental.wav';
     a.click();
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
 });
 
 // Hàm convert AudioBuffer → WAV file
@@ -181,3 +196,9 @@ function audioBufferToWav(buffer) {
     }
     return new Blob([arrayBuffer], { type: 'audio/wav' });
 }
+
+// Cầu nối cho chế độ Nâng cao (advanced.js)
+window.RM = {
+    setBuffers(v, m) { vocalBuffer = v; musicBuffer = m; },
+    onCancel() { processed = false; }
+};
