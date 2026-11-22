@@ -19,9 +19,51 @@
         <input type="file" id="fileInput" accept="audio/*">
         <p id="fileName">Chưa chọn file nào</p>
 
+        <div class="opt-group">
+            <label for="modeSelect">Chế độ tách</label>
+            <select id="modeSelect">
+                <option value="advanced" selected>Nâng cao (khuyên dùng cho nhạc MV)</option>
+                <option value="basic">Cơ bản (Mid/Side, nhanh)</option>
+            </select>
+        </div>
+        <div id="advOptions" class="opt-box">
+            <div class="opt-group">
+                <label for="strengthSelect">Mức tách</label>
+                <select id="strengthSelect">
+                    <option value="nhe">Nhẹ (giữ nhiều nhạc, ít lỗi)</option>
+                    <option value="canbang" selected>Cân bằng</option>
+                    <option value="manh">Mạnh (sạch nhạc hơn, dễ méo)</option>
+                </select>
+            </div>
+            <div class="opt-group">
+                <label><input type="checkbox" id="cleanupChk" checked> ✨ Làm sạch vocal (EQ, lọc ồn, nén)</label>
+                <select id="cleanupPreset">
+                    <option value="nhe">Nhẹ</option>
+                    <option value="vua" selected>Vừa</option>
+                    <option value="manh">Mạnh</option>
+                </select>
+            </div>
+            <p class="hint">Chạy ngay trên máy, không dùng AI, không tải gì lên mạng. Kết quả tốt hơn Cơ bản nhưng không bằng AI chuyên dụng.</p>
+        </div>
+
         <button id="processBtn" disabled>⚡ Bắt đầu tách nhạc</button>
+        <button id="cancelBtn" hidden class="secondary">⏹ Huỷ</button>
+        <progress id="progressBar" max="1" value="0" hidden></progress>
 
         <div id="status" class="status"></div>
+
+        <div id="abPanel" class="ab-panel" style="display:none;">
+            <h3>🎧 Nghe so sánh</h3>
+            <div class="ab-modes">
+                <button type="button" data-ab="orig">Gốc</button>
+                <button type="button" data-ab="raw">Vocal</button>
+                <button type="button" data-ab="clean">Vocal sạch</button>
+                <button type="button" data-ab="music">Nhạc</button>
+            </div>
+            <input type="range" id="abSeek" min="0" max="1000" value="0">
+            <button type="button" id="abPlayBtn">▶️ Nghe</button>
+            <label class="hint"><input type="checkbox" id="abLevel" checked> Cân bằng âm lượng khi so sánh</label>
+        </div>
 
         <div class="controls" id="controls" style="display: none;">
             <div class="slider-group">
@@ -39,5 +81,6 @@
     </div>
 
     <script src="app.js"></script>
+    <script src="advanced.js"></script>
 </body>
 </html>

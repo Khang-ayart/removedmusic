@@ -14,6 +14,15 @@
 - 📱 **PWA Support**: Cài đặt như app trên điện thoại
 - 🌐 **Multi-platform**: Chạy trên Android, iOS, Windows, macOS
 
+## 🎚️ Chế độ tách
+
+- **Nâng cao** (mặc định): xử lý phổ tần (STFT) tìm thành phần ở giữa, loại trống/bass, rồi *làm sạch vocal* (EQ, lọc ồn, nén). Chạy trong Web Worker nên không đơ giao diện, có tiến độ và nút Huỷ. Có panel **nghe so sánh A/B** (Gốc / Vocal / Vocal sạch / Nhạc) chuyển tức thì.
+- **Cơ bản**: Mid/Side như bản cũ, nhanh nhưng kém với nhạc MV.
+
+Không dùng AI, không tải model, không gửi dữ liệu đi đâu. Đây là xử lý tín hiệu cổ điển: tốt hơn Mid/Side rõ rệt nhưng **không bằng AI chuyên dụng**; nhạc có vocal không ở giữa hoặc hoà âm dày vẫn còn lọt nhạc. Số liệu kiểm thử hiện là trên âm thanh tổng hợp.
+
+Kiểm thử: `node tests/dsp.test.js` (thuật toán) và `node tests/integration.adv.mjs` (Chrome headless, cần chỉnh đường dẫn file wav mẫu).
+
 ## 🚀 Cách sử dụng
 
 1. Truy cập [removedmusic.vercel.app](https://removedmusic.vercel.app)
